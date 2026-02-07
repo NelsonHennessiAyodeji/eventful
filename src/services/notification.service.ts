@@ -1,10 +1,22 @@
 import cron from "node-cron";
 import nodemailer from "nodemailer";
+import { Types } from "mongoose";
 import Notification from "../models/Notification";
 import Event from "../models/Event";
-import User from "../models/User";
+import User, { IUser } from "../models/User";
 import Ticket from "../models/Ticket";
 import logger from "../utils/logger";
+
+// Define interface for populated user
+interface IPopulatedUser {
+  _id: Types.ObjectId;
+  email: string;
+  name?: string;
+  notifications?: {
+    email: boolean;
+    push: boolean;
+  };
+}
 
 export class NotificationService {
   private static transporter = nodemailer.createTransport({
@@ -40,12 +52,12 @@ export class NotificationService {
   }
 
   static async createNotification(
-    userId: any,
+    userId: Types.ObjectId,
     type: string,
     title: string,
     message: string,
     data: any = {},
-    eventId?: any,
+    eventId?: Types.ObjectId,
     scheduledFor?: Date
   ): Promise<void> {
     try {
@@ -164,7 +176,10 @@ export class NotificationService {
         const upcomingEvents = await Event.find({
           startDate: { $gt: now, $lte: oneWeekFromNow },
           isPublished: true,
-        }).populate("organizer");
+        }).populate<{ organizer: IUser }>(
+          "organizer",
+          "email name notifications"
+        );
 
         for (const event of upcomingEvents) {
           // Calculate hours until event
@@ -196,6 +211,12 @@ export class NotificationService {
   }
 
   private static async sendEventReminderToOrganizer(event: any): Promise<void> {
+    const organizer = event.organizer as IUser;
+
+    if (!organizer?.notifications?.email) {
+      return;
+    }
+
     const reminderData = {
       eventTitle: event.title,
       eventDate: event.startDate,
@@ -207,7 +228,7 @@ export class NotificationService {
     };
 
     await this.createNotification(
-      event.organizer._id,
+      organizer._id,
       "event_reminder",
       `Event Reminder: ${event.title}`,
       `Your event "${event.title}" is starting soon.`,
@@ -220,13 +241,25 @@ export class NotificationService {
     event: any,
     hoursBefore: number
   ): Promise<void> {
+    // Define the populated ticket interface
+    interface IPopulatedTicket {
+      _id: Types.ObjectId;
+      user: IPopulatedUser;
+      qrCode: string;
+      paymentStatus: string;
+    }
+
+    // Get tickets with populated user data including notifications
     const tickets = await Ticket.find({
       event: event._id,
       paymentStatus: "paid",
-    }).populate("user");
+    }).populate<{ user: IPopulatedUser }>("user", "email notifications");
 
     for (const ticket of tickets) {
-      if (ticket.user?.notifications?.email) {
+      const user = ticket.user as IPopulatedUser;
+
+      // Check if user wants email notifications
+      if (user?.notifications?.email) {
         const reminderData = {
           eventTitle: event.title,
           eventDate: event.startDate,
@@ -238,7 +271,7 @@ export class NotificationService {
         };
 
         await this.createNotification(
-          ticket.user._id,
+          user._id,
           "event_reminder",
           `Event Reminder: ${event.title}`,
           `The event "${event.title}" starts in ${hoursBefore} hours.`,
@@ -246,6 +279,65 @@ export class NotificationService {
           event._id
         );
       }
+    }
+  }
+
+  // Optional: Add method for sending push notifications
+  static async sendPushNotification(
+    userId: Types.ObjectId,
+    title: string,
+    body: string,
+    data: any = {}
+  ): Promise<void> {
+    try {
+      // This is a placeholder for actual push notification implementation
+      // You would integrate with Firebase Cloud Messaging, OneSignal, etc.
+      logger.info(`Push notification sent to user ${userId}: ${title}`);
+    } catch (error) {
+      logger.error("Failed to send push notification:", error);
+    }
+  }
+
+  // Add method for sending bulk notifications
+  static async sendBulkNotifications(
+    userIds: Types.ObjectId[],
+    type: string,
+    title: string,
+    message: string,
+    data: any = {}
+  ): Promise<void> {
+    try {
+      const notifications = userIds.map((userId) => ({
+        user: userId,
+        type,
+        title,
+        message,
+        data,
+        sentAt: new Date(),
+      }));
+
+      await Notification.insertMany(notifications);
+
+      logger.info(`Bulk notifications sent to ${userIds.length} users`);
+    } catch (error) {
+      logger.error("Failed to send bulk notifications:", error);
+    }
+  }
+
+  // Add method for clearing old notifications
+  static async cleanupOldNotifications(days: number = 30): Promise<void> {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - days);
+
+      const result = await Notification.deleteMany({
+        createdAt: { $lt: cutoffDate },
+        isRead: true,
+      });
+
+      logger.info(`Cleaned up ${result.deletedCount} old notifications`);
+    } catch (error) {
+      logger.error("Failed to cleanup old notifications:", error);
     }
   }
 }

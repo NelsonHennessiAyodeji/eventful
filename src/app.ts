@@ -1,11 +1,12 @@
 import express from "express";
-import mongoose from "mongoose";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import swaggerUi from "swagger-ui-express";
-import swaggerJsdoc from "swagger-jsdoc";
 import dotenv from "dotenv";
+
+import { connectDB } from "./config/database";
+import swaggerSpec from "./config/swagger";
 
 import authRoutes from "./routes/auth.routes";
 import eventRoutes from "./routes/events.routes";
@@ -21,6 +22,9 @@ dotenv.config();
 
 const app = express();
 
+// Connect to MongoDB
+connectDB();
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -35,36 +39,16 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(limiter);
 
-// Swagger configuration
-const swaggerOptions = {
-  definition: {
-    openapi: "3.0.0",
-    info: {
-      title: "Eventful API",
-      version: "1.0.0",
-      description: "Event ticketing platform API documentation",
-    },
-    servers: [
-      {
-        url: `http://localhost:${process.env.PORT || 5000}`,
-        description: "Development server",
-      },
-    ],
-    components: {
-      securitySchemes: {
-        bearerAuth: {
-          type: "http",
-          scheme: "bearer",
-          bearerFormat: "JWT",
-        },
-      },
-    },
-  },
-  apis: ["./src/routes/*.ts"],
-};
-
-const swaggerSpec = swaggerJsdoc(swaggerOptions);
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+// Swagger documentation
+app.use(
+  "/api-docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    explorer: true,
+    customCss: ".swagger-ui .topbar { display: none }",
+    customSiteTitle: "Eventful API Documentation",
+  })
+);
 
 // Routes
 app.use("/api/auth", authRoutes);
@@ -76,26 +60,36 @@ app.use("/api/notifications", notificationRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
-  res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
+  res.status(200).json({
+    status: "OK",
+    service: "Eventful API",
+    version: "1.0.0",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
+});
+
+// API documentation redirect
+app.get("/docs", (req, res) => {
+  res.redirect("/api-docs");
+});
+
+// 404 handler
+app.use("*", (req, res) => {
+  res.status(404).json({
+    error: "Not Found",
+    message: `Route ${req.originalUrl} not found`,
+    documentation: "/api-docs",
+  });
 });
 
 // Error handling
 app.use(errorHandler);
 
-// Database connection
-mongoose
-  .connect(process.env.MONGODB_URI || "mongodb://localhost:27017/eventful")
-  .then(() => {
-    logger.info("Connected to MongoDB");
-
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
-      logger.info(`Server running on port ${PORT}`);
-    });
-  })
-  .catch((error) => {
-    logger.error("MongoDB connection error:", error);
-    process.exit(1);
-  });
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  logger.info(`Server running on port ${PORT}`);
+  logger.info(`API Documentation: http://localhost:${PORT}/api-docs`);
+});
 
 export default app;

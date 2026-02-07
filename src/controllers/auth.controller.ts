@@ -45,7 +45,7 @@ export class AuthController {
       });
 
       // Remove password from response
-      const userResponse = user.toObject();
+      const userResponse = user.toObject() as any;
       delete userResponse.password;
 
       res.status(201).json({
@@ -90,7 +90,7 @@ export class AuthController {
       });
 
       // Remove password from response
-      const userResponse = user.toObject();
+      const userResponse = user.toObject() as any;
       delete userResponse.password;
 
       res.json({
