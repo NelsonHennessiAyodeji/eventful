@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Eventful - Event Attendees</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-100">
+    <nav class="bg-white shadow p-4">
+      <div class="container mx-auto flex justify-between">
+        <a href="/" class="text-xl font-bold">Eventful</a>
+        <div id="nav-links" class="space-x-4"></div>
+      </div>
+    </nav>
+    <main class="container mx-auto mt-10 p-4">
+      <h1 class="text-3xl font-bold mb-4" id="eventTitle"></h1>
+      <div
+        id="attendeesList"
+        class="grid grid-cols-1 md:grid-cols-2 gap-4"
+      ></div>
+      <div class="mt-4">
+        <h2 class="text-xl font-bold mb-2">Scan Ticket</h2>
+        <input
+          type="text"
+          id="ticketId"
+          placeholder="Enter Ticket ID"
+          class="border p-2 rounded"
+        />
+        <button
+          onclick="scanTicket()"
+          class="bg-blue-500 text-white px-4 py-2 rounded"
+        >
+          Scan
+        </button>
+      </div>
+    </main>
+    <script>
+      const token = localStorage.getItem("token");
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      if (!token || user.role !== "creator") window.location.href = "/";
+      const urlParams = new URLSearchParams(window.location.search);
+      const eventId = urlParams.get("id");
+
+      async function loadAttendees() {
+        if (!eventId) return;
+        try {
+          const res = await fetch(`/api/events/${eventId}/attendees`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json();
+          if (data.success) {
+            const attendees = data.data;
+            document.getElementById(
+              "eventTitle"
+            ).innerText = `Attendees for Event`;
+            const container = document.getElementById("attendeesList");
+            container.innerHTML = attendees
+              .map(
+                (ticket) => `
+                        <div class="bg-white p-4 rounded shadow">
+                            <p><strong>Name:</strong> ${
+                              ticket.attendee?.name
+                            }</p>
+                            <p><strong>Email:</strong> ${
+                              ticket.attendee?.email
+                            }</p>
+                            <p><strong>Scanned:</strong> ${
+                              ticket.scanned ? "Yes" : "No"
+                            }</p>
+                            <p><strong>Ticket ID:</strong> ${ticket._id}</p>
+                            <button onclick="markScanned('${
+                              ticket._id
+                            }')" class="mt-2 bg-green-500 text-white px-2 py-1 rounded text-sm">Mark Scanned</button>
+                        </div>
+                    `
+              )
+              .join("");
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      window.scanTicket = async () => {
+        const ticketId = document.getElementById("ticketId").value;
+        if (!ticketId) return;
+        try {
+          const res = await fetch("/api/tickets/scan", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ ticketId }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            alert("Ticket verified!");
+            loadAttendees();
+          } else {
+            alert(data.message);
+          }
+        } catch (err) {
+          alert("Error: " + err.message);
+        }
+      };
+
+      window.markScanned = async (ticketId) => {
+        document.getElementById("ticketId").value = ticketId;
+        await scanTicket();
+      };
+
+      function setupNav() {
+        const navLinks = document.getElementById("nav-links");
+        navLinks.innerHTML = `
+                <a href="/events.html" class="text-blue-600">Events</a>
+                <a href="/my-events.html" class="text-blue-600">My Events</a>
+                <a href="/analytics.html" class="text-blue-600">Analytics</a>
+                <a href="/dashboard.html" class="text-blue-600">Dashboard</a>
+                <a href="#" id="logout" class="text-red-600">Logout</a>
+            `;
+        document.getElementById("logout")?.addEventListener("click", (e) => {
+          e.preventDefault();
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          window.location.href = "/";
+        });
+      }
+      setupNav();
+      loadAttendees();
+    </script>
+  </body>
+</html>

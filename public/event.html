@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Eventful - Events</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-100">
+    <nav class="bg-white shadow p-4">
+      <div class="container mx-auto flex justify-between">
+        <a href="/" class="text-xl font-bold">Eventful</a>
+        <div id="nav-links" class="space-x-4"></div>
+      </div>
+    </nav>
+    <main class="container mx-auto mt-10 p-4">
+      <h1 class="text-3xl font-bold mb-4">All Events</h1>
+      <div id="eventsList" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+    </main>
+    <script>
+      const token = localStorage.getItem("token");
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+      async function loadEvents() {
+        try {
+          const res = await fetch("/api/events");
+          const data = await res.json();
+          if (data.success) {
+            const events = data.data;
+            const container = document.getElementById("eventsList");
+            container.innerHTML = events
+              .map(
+                (event) => `
+                        <div class="bg-white p-4 rounded shadow">
+                            <h2 class="text-xl font-bold">${event.title}</h2>
+                            <p class="text-gray-600">${event.description}</p>
+                            <p><strong>Date:</strong> ${new Date(
+                              event.date
+                            ).toLocaleString()}</p>
+                            <p><strong>Location:</strong> ${event.location}</p>
+                            <p><strong>Price:</strong> ₦${event.price}</p>
+                            <p><strong>Tickets Available:</strong> ${
+                              event.availableTickets
+                            }</p>
+                            ${
+                              token &&
+                              user.role === "attendee" &&
+                              event.availableTickets > 0
+                                ? `<button onclick="buyTicket('${event._id}')" class="mt-2 bg-green-500 text-white px-3 py-1 rounded">Buy Ticket</button>`
+                                : ""
+                            }
+                        </div>
+                    `
+              )
+              .join("");
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      window.buyTicket = async (eventId) => {
+        if (!token) {
+          window.location.href = "/login.html";
+          return;
+        }
+        try {
+          const res = await fetch("/api/payments/initialize", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ eventId }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            window.location.href = data.data.authorization_url;
+          } else {
+            alert(data.message);
+          }
+        } catch (err) {
+          alert("Error: " + err.message);
+        }
+      };
+
+      function setupNav() {
+        const navLinks = document.getElementById("nav-links");
+        if (token && user.role) {
+          navLinks.innerHTML = `
+                    <a href="/events.html" class="text-blue-600">Events</a>
+                    ${
+                      user.role === "creator"
+                        ? '<a href="/my-events.html" class="text-blue-600">My Events</a>'
+                        : ""
+                    }
+                    ${
+                      user.role === "attendee"
+                        ? '<a href="/my-tickets.html" class="text-blue-600">My Tickets</a>'
+                        : ""
+                    }
+                    <a href="/dashboard.html" class="text-blue-600">Dashboard</a>
+                    <a href="#" id="logout" class="text-red-600">Logout</a>
+                `;
+          document.getElementById("logout")?.addEventListener("click", (e) => {
+            e.preventDefault();
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            window.location.href = "/";
+          });
+        } else {
+          navLinks.innerHTML = `
+                    <a href="/events.html" class="text-blue-600">Events</a>
+                    <a href="/login.html" class="text-blue-600">Login</a>
+                    <a href="/register.html" class="text-blue-600">Register</a>
+                `;
+        }
+      }
+
+      setupNav();
+      loadEvents();
+    </script>
+  </body>
+</html>

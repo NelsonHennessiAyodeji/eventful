@@ -7,6 +7,7 @@ exports.app = void 0;
 const express_1 = __importDefault(require("express"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const dotenv_1 = __importDefault(require("dotenv"));
+const path_1 = __importDefault(require("path"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const swagger_ui_express_1 = __importDefault(require("swagger-ui-express"));
 const swagger_1 = __importDefault(require("./docs/swagger"));
@@ -29,6 +30,7 @@ const limiter = (0, express_rate_limit_1.default)({
 exports.app.use("/api", limiter);
 // Body parser
 exports.app.use(express_1.default.json());
+exports.app.use(express_1.default.static(path_1.default.join(__dirname, "../public")));
 exports.app.use(express_1.default.urlencoded({ extended: true }));
 // Routes
 exports.app.use("/api/auth", auth_1.default);

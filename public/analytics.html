@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Eventful - Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-100">
+    <nav class="bg-white shadow p-4">
+      <div class="container mx-auto flex justify-between">
+        <a href="/" class="text-xl font-bold">Eventful</a>
+        <div id="nav-links" class="space-x-4"></div>
+      </div>
+    </nav>
+    <main class="container mx-auto mt-10 p-4">
+      <h1 class="text-3xl font-bold mb-4">Analytics</h1>
+      <div id="overall" class="bg-white p-4 rounded shadow mb-4"></div>
+      <h2 class="text-2xl font-bold mb-2">Per Event</h2>
+      <div id="perEvent" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+    </main>
+    <script>
+      const token = localStorage.getItem("token");
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      if (!token || user.role !== "creator") window.location.href = "/";
+
+      async function loadOverall() {
+        try {
+          const res = await fetch("/api/analytics/overall", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json();
+          if (data.success) {
+            const a = data.data;
+            document.getElementById("overall").innerHTML = `
+                        <h3 class="text-xl font-semibold">Overall</h3>
+                        <p><strong>Total Attendees:</strong> ${a.totalAttendees}</p>
+                        <p><strong>Scanned Count:</strong> ${a.scannedCount}</p>
+                        <p><strong>Total Tickets Sold:</strong> ${a.totalTicketsSold}</p>
+                        <p><strong>Total Revenue:</strong> ₦${a.totalRevenue}</p>
+                    `;
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      async function loadPerEvent() {
+        try {
+          const resEvents = await fetch("/api/events/my-events", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const eventsData = await resEvents.json();
+          if (eventsData.success) {
+            const events = eventsData.data;
+            const container = document.getElementById("perEvent");
+            container.innerHTML = "";
+            for (const event of events) {
+              const res = await fetch(`/api/analytics/event/${event._id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const data = await res.json();
+              if (data.success) {
+                const a = data.data;
+                container.innerHTML += `
+                                <div class="bg-white p-4 rounded shadow">
+                                    <h4 class="text-lg font-bold">${event.title}</h4>
+                                    <p><strong>Attendees:</strong> ${a.totalAttendees}</p>
+                                    <p><strong>Scanned:</strong> ${a.scannedCount}</p>
+                                    <p><strong>Tickets Sold:</strong> ${a.ticketsSold}</p>
+                                    <p><strong>Revenue:</strong> ₦${a.revenue}</p>
+                                </div>
+                            `;
+              }
+            }
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      function setupNav() {
+        const navLinks = document.getElementById("nav-links");
+        navLinks.innerHTML = `
+                <a href="/events.html" class="text-blue-600">Events</a>
+                <a href="/my-events.html" class="text-blue-600">My Events</a>
+                <a href="/analytics.html" class="text-blue-600">Analytics</a>
+                <a href="/dashboard.html" class="text-blue-600">Dashboard</a>
+                <a href="#" id="logout" class="text-red-600">Logout</a>
+            `;
+        document.getElementById("logout")?.addEventListener("click", (e) => {
+          e.preventDefault();
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          window.location.href = "/";
+        });
+      }
+      setupNav();
+      loadOverall();
+      loadPerEvent();
+    </script>
+  </body>
+</html>

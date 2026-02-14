@@ -6,5 +6,21 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const webhookController_1 = require("../controllers/webhookController");
 const router = express_1.default.Router();
+/**
+ * @swagger
+ * /webhooks/paystack:
+ *   post:
+ *     summary: Paystack webhook endpoint (public)
+ *     tags: [Webhooks]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Webhook received
+ */
 router.post("/paystack", webhookController_1.paystackWebhook);
 exports.default = router;
