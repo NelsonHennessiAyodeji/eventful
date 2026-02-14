@@ -6,6 +6,7 @@
   "author": "Ayodeji Nelson",
   "scripts": {
     "start": "node dist/server.js",
+    "vercel-build": "npm run build",
     "dev": "nodemon server.ts",
     "build": "tsc",
     "test": "jest --coverage",
